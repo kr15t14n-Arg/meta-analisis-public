@@ -5,6 +5,7 @@ from typing import List, Tuple, Dict, Any
 from docx import Document
 from PyPDF2 import PdfReader
 
+
 def _analyze_txt(path: str) -> Dict[str, Any]:
     meta = {}
     with open(path, "rb") as f:
@@ -13,6 +14,7 @@ def _analyze_txt(path: str) -> Dict[str, Any]:
     meta["MD5"] = hashlib.md5(content).hexdigest()
     meta["Lines"] = content.count(b"\n") + 1 if content else 0
     return meta
+
 
 def _analyze_docx(path: str) -> Dict[str, Any]:
     meta = {}
@@ -26,6 +28,7 @@ def _analyze_docx(path: str) -> Dict[str, Any]:
     meta["Revision"] = str(props.revision) if props.revision is not None else None
     return meta
 
+
 def _analyze_pdf(path: str) -> Dict[str, Any]:
     meta = {}
     reader = PdfReader(path)
@@ -37,6 +40,7 @@ def _analyze_pdf(path: str) -> Dict[str, Any]:
     meta["Created"] = info.get("/CreationDate")
     meta["Modified"] = info.get("/ModDate")
     return meta
+
 
 def analyze_file(path: str) -> Dict[str, Any]:
     ext = os.path.splitext(path)[1].lower()
@@ -54,7 +58,14 @@ def analyze_file(path: str) -> Dict[str, Any]:
         row["Error"] = str(e)
     return row
 
+
 def analyze_multiple_files(files: List[str], export_csv: str = "docs_analysis.csv") -> Tuple[Dict[str, Any], str, list]:
+    """
+    Analiza múltiples documentos y devuelve:
+    - common: campos comunes (correlaciones)
+    - export_csv: ruta del CSV generado
+    - rows: lista de metadatos individuales por archivo
+    """
     valid = [f for f in files if os.path.exists(f)]
     rows = [analyze_file(f) for f in valid]
     if not rows:

@@ -6,7 +6,7 @@ from tools.cleaner import clean_with_exiftool, clean_batch
 from tools.metadata_viewer import get_metadata_text
 from tools.metadata_analyzer import analyze_common_metadata as analyze_images
 from tools.file_analyzer import analyze_multiple_files as analyze_docs
-from tools.report_generator import generate_forensic_report
+from tools.report_generator import export_to_pdf  # 🆕 reemplaza generate_forensic_report
 
 
 class MetaAnalisisUI:
@@ -112,16 +112,21 @@ class MetaAnalisisUI:
         self.txt_out.insert(tk.END, f"📊 Coincidencias (Imágenes):\n{common}\n\nCSV: {csv_path}\n")
 
         if rows:
-            save_report = messagebox.askyesno("Informe", "¿Generar informe .docx para imágenes?")
+            save_report = messagebox.askyesno("Informe", "¿Generar informe PDF para imágenes?")
             if save_report:
-                docx_path = filedialog.asksaveasfilename(
-                    title="Guardar informe .docx",
-                    defaultextension=".docx",
-                    initialfile="images_forensic_report.docx"
+                pdf_path = filedialog.asksaveasfilename(
+                    title="Guardar informe PDF",
+                    defaultextension=".pdf",
+                    initialfile="images_forensic_report.pdf"
                 )
-                if docx_path:
-                    out = generate_forensic_report(common, rows, docx_path)
-                    messagebox.showinfo("Informe generado", f"Informe guardado en:\n{out}")
+                if pdf_path:
+                    correlations = [(k, "-", v) for k, v in common.items()]
+                    export_to_pdf(
+                        metadata_list=[(row["File"], "\n".join([f"{k}: {v}" for k, v in row.items()])) for row in rows],
+                        correlations=correlations,
+                        output_path=pdf_path
+                    )
+                    messagebox.showinfo("Informe generado", f"Informe guardado en:\n{pdf_path}")
 
     # --------- Análisis documentos ----------
     def analyze_docs_ui(self):
@@ -137,20 +142,24 @@ class MetaAnalisisUI:
         self.txt_out.insert(tk.END, f"📊 Coincidencias (Documentos):\n{common}\n\nCSV: {csv_path}\n")
 
         if rows:
-            save_report = messagebox.askyesno("Informe", "¿Generar informe .docx para documentos?")
+            save_report = messagebox.askyesno("Informe", "¿Generar informe PDF para documentos?")
             if save_report:
-                docx_path = filedialog.asksaveasfilename(
-                    title="Guardar informe .docx",
-                    defaultextension=".docx",
-                    initialfile="docs_forensic_report.docx"
+                pdf_path = filedialog.asksaveasfilename(
+                    title="Guardar informe PDF",
+                    defaultextension=".pdf",
+                    initialfile="docs_forensic_report.pdf"
                 )
-                if docx_path:
-                    out = generate_forensic_report(common, rows, docx_path)
-                    messagebox.showinfo("Informe generado", f"Informe guardado en:\n{out}")
+                if pdf_path:
+                    correlations = [(k, "-", v) for k, v in common.items()]
+                    export_to_pdf(
+                        metadata_list=[(row["File"], "\n".join([f"{k}: {v}" for k, v in row.items()])) for row in rows],
+                        correlations=correlations,
+                        output_path=pdf_path
+                    )
+                    messagebox.showinfo("Informe generado", f"Informe guardado en:\n{pdf_path}")
 
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = MetaAnalisisUI(root)
     root.mainloop()
-

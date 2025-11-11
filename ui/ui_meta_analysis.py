@@ -5,9 +5,11 @@ import subprocess, os, webbrowser
 import folium
 from tools.metadata_utils import parse_metadata_to_dict, extract_core_fields
 from tools.intelligent_filter import build_correlation_report
+from tools.report_generator import export_to_pdf  # 🔹 import directo del exportador
 
-# almacenamiento temporal de resultados
+# Variables globales
 metadata_results = []
+last_correlation_structure = None
 
 
 def analyze_files(file_paths, output_text):
@@ -62,36 +64,73 @@ def select_files(output_text):
 
 
 def run_correlations(output_text):
+    global last_correlation_structure
+
     if not metadata_results:
         messagebox.showwarning("Atención", "Primero analiza archivos antes de buscar coincidencias.")
         return
 
-    report = build_correlation_report(metadata_results)
+    # build_correlation_report devuelve texto + estructura
+    report_text, report_struct = build_correlation_report(metadata_results)
+
+    # Guardamos la estructura para exportarla después
+    last_correlation_structure = report_struct
+
     output_text.insert(tk.END, "\n=== Reporte de Coincidencias Inteligentes ===\n")
-    output_text.insert(tk.END, report + "\n")
+    output_text.insert(tk.END, report_text + "\n")
     output_text.insert(tk.END, "----------------------------------------\n\n")
     output_text.see(tk.END)
 
+    messagebox.showinfo("Análisis completado", "Coincidencias inteligentes generadas correctamente.")
+
+
+from tools.report_generator import export_to_pdf, export_to_txt, export_to_csv
 
 def export_results(output_text):
     if not metadata_results:
         messagebox.showwarning("Atención", "No hay resultados para exportar.")
         return
 
+    # Obtener texto completo del área (incluye correlaciones visibles)
+    correlations_text = output_text.get("1.0", tk.END).strip()
+
+    # Diálogo para elegir formato de exportación
     save_path = filedialog.asksaveasfilename(
-        defaultextension=".txt",
-        filetypes=[("Archivo de texto", "*.txt")]
+        title="Guardar informe",
+        defaultextension=".pdf",
+        filetypes=[
+            ("Archivo PDF", "*.pdf"),
+            ("Archivo de texto", "*.txt"),
+            ("Archivo CSV", "*.csv"),
+        ]
     )
-    if save_path:
-        with open(save_path, "w", encoding="utf-8") as f:
-            for item in metadata_results:
-                f.write(f"=== {item['filename']} ===\n")
-                f.write(item["metadata"] + "\n")
-                f.write("--- Campos clave ---\n")
-                for k, v in item["core"].items():
-                    f.write(f"{k}: {v}\n")
-                f.write("\n")
-        messagebox.showinfo("Éxito", f"Resultados exportados a {save_path}")
+    if not save_path:
+        return
+
+    try:
+        if save_path.lower().endswith(".pdf"):
+            # Convertir resultados al formato esperado por export_to_pdf()
+            metadata_tuples = [
+                (item["filename"], item["metadata"]) for item in metadata_results
+            ]
+            export_to_pdf(metadata_tuples, correlations=correlations_text, output_path=save_path)
+
+        elif save_path.lower().endswith(".csv"):
+            metadata_tuples = [
+                (item["filename"], item["metadata"]) for item in metadata_results
+            ]
+            export_to_csv(metadata_tuples, output_path=save_path)
+
+        else:
+            export_to_txt(
+                [(item["filename"], item["metadata"]) for item in metadata_results],
+                output_path=save_path
+            )
+
+        messagebox.showinfo("Éxito", f"Informe exportado correctamente a:\n{save_path}")
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Ocurrió un error al exportar:\n{e}")
 
 
 def show_on_map():
@@ -110,7 +149,6 @@ def show_on_map():
         messagebox.showinfo("Info", "Ningún archivo tiene coordenadas GPS.")
         return
 
-    # Crear mapa centrado en el primer punto
     m = folium.Map(location=[gps_points[0][0], gps_points[0][1]], zoom_start=12)
 
     for lat, lon, name in gps_points:
