@@ -1,16 +1,38 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
-import subprocess, os, webbrowser
-
+import subprocess, os, sys, webbrowser
 import folium
+
 from tools.metadata_utils import parse_metadata_to_dict, extract_core_fields
 from tools.intelligent_filter import build_correlation_report
-from tools.report_generator import export_to_pdf  # 🔹 import directo del exportador
+from tools.report_generator import export_to_pdf, export_to_txt, export_to_csv
 
-# Variables globales
+# =====================================================
+# 🔹 RUTA SEGURA PARA ARCHIVOS DENTRO Y FUERA DEL EXE
+# =====================================================
+def resource_path(relative_path):
+    """Obtiene la ruta absoluta de recursos, compatible con PyInstaller."""
+    try:
+        base_path = sys._MEIPASS  # carpeta temporal creada por PyInstaller
+    except Exception:
+        base_path = os.path.abspath(".")  # ejecución normal (PyCharm)
+    return os.path.join(base_path, relative_path)
+
+
+# =====================================================
+# 🔹 VARIABLES GLOBALES
+# =====================================================
 metadata_results = []
 last_correlation_structure = None
 
+
+# =====================================================
+# 🔹 FUNCIONES PRINCIPALES
+# =====================================================
+import subprocess
+import os
+import tkinter as tk
+from tkinter import messagebox
 
 def analyze_files(file_paths, output_text):
     global metadata_results
@@ -18,13 +40,19 @@ def analyze_files(file_paths, output_text):
 
     for path in file_paths:
         try:
+            # 🔹 Evita que aparezca la ventana CMD al llamar a exiftool
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
             result = subprocess.run(
                 ["exiftool", path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
-                errors="replace"
+                errors="replace",
+                startupinfo=startupinfo,  # 👈 evita el parpadeo
+                creationflags=subprocess.CREATE_NO_WINDOW  # 🔹 segunda capa de seguridad
             )
 
             meta_text = result.stdout
@@ -40,9 +68,8 @@ def analyze_files(file_paths, output_text):
 
             output_text.insert(tk.END, f"=== Metadatos de {os.path.basename(path)} ===\n")
             output_text.insert(tk.END, meta_text + "\n")
-
-            # Mostrar campos clave + hashes
             output_text.insert(tk.END, "--- Campos clave normalizados ---\n")
+
             for k, v in core.items():
                 output_text.insert(tk.END, f"{k}: {v}\n")
 
@@ -52,7 +79,6 @@ def analyze_files(file_paths, output_text):
         except FileNotFoundError:
             messagebox.showerror("Error", "❌ ExifTool no está instalado o no está en el PATH.")
             break
-
 
 def select_files(output_text):
     file_paths = filedialog.askopenfilenames(
@@ -70,10 +96,7 @@ def run_correlations(output_text):
         messagebox.showwarning("Atención", "Primero analiza archivos antes de buscar coincidencias.")
         return
 
-    # build_correlation_report devuelve texto + estructura
     report_text, report_struct = build_correlation_report(metadata_results)
-
-    # Guardamos la estructura para exportarla después
     last_correlation_structure = report_struct
 
     output_text.insert(tk.END, "\n=== Reporte de Coincidencias Inteligentes ===\n")
@@ -84,17 +107,13 @@ def run_correlations(output_text):
     messagebox.showinfo("Análisis completado", "Coincidencias inteligentes generadas correctamente.")
 
 
-from tools.report_generator import export_to_pdf, export_to_txt, export_to_csv
-
 def export_results(output_text):
     if not metadata_results:
         messagebox.showwarning("Atención", "No hay resultados para exportar.")
         return
 
-    # Obtener texto completo del área (incluye correlaciones visibles)
     correlations_text = output_text.get("1.0", tk.END).strip()
 
-    # Diálogo para elegir formato de exportación
     save_path = filedialog.asksaveasfilename(
         title="Guardar informe",
         defaultextension=".pdf",
@@ -108,33 +127,21 @@ def export_results(output_text):
         return
 
     try:
+        metadata_tuples = [(item["filename"], item["metadata"]) for item in metadata_results]
+
         if save_path.lower().endswith(".pdf"):
-            # Convertir resultados al formato esperado por export_to_pdf()
-            metadata_tuples = [
-                (item["filename"], item["metadata"]) for item in metadata_results
-            ]
             export_to_pdf(metadata_tuples, correlations=correlations_text, output_path=save_path)
-
         elif save_path.lower().endswith(".csv"):
-            metadata_tuples = [
-                (item["filename"], item["metadata"]) for item in metadata_results
-            ]
             export_to_csv(metadata_tuples, output_path=save_path)
-
         else:
-            export_to_txt(
-                [(item["filename"], item["metadata"]) for item in metadata_results],
-                output_path=save_path
-            )
+            export_to_txt(metadata_tuples, output_path=save_path)
 
         messagebox.showinfo("Éxito", f"Informe exportado correctamente a:\n{save_path}")
-
     except Exception as e:
         messagebox.showerror("Error", f"Ocurrió un error al exportar:\n{e}")
 
 
 def show_on_map():
-    """Muestra todos los puntos GPS encontrados en un mapa (folium)."""
     if not metadata_results:
         messagebox.showwarning("Atención", "No hay archivos analizados.")
         return
@@ -150,7 +157,6 @@ def show_on_map():
         return
 
     m = folium.Map(location=[gps_points[0][0], gps_points[0][1]], zoom_start=12)
-
     for lat, lon, name in gps_points:
         folium.Marker([lat, lon], popup=name).add_to(m)
 
@@ -159,61 +165,51 @@ def show_on_map():
     webbrowser.open("file://" + os.path.abspath(map_path))
 
 
+# =====================================================
+# 🔹 INTERFAZ GRÁFICA
+# =====================================================
 def main():
     root = tk.Tk()
     root.title("Meta-Analisis 🕵️‍♀️")
-    root.iconbitmap(os.path.join(os.path.dirname(__file__), "assets", "icon.ico"))
-    root.geometry("1000x700")  # opcional, ajusta si querés tamaño fijo
 
-    # ------------------------------------------------------------
-    # Fondo / Marca de agua
-    # ------------------------------------------------------------
+    # Icono (seguro para EXE)
     try:
-        bg_path = os.path.join(os.path.dirname(__file__), "assets", "background.png")
+        root.iconbitmap(resource_path("ui/assets/icon.ico"))
+    except Exception as e:
+        print(f"[Advertencia] No se pudo cargar el icono: {e}")
+
+    root.geometry("1000x700")
+
+    # Fondo
+    try:
+        bg_path = resource_path("ui/assets/background.png")
         bg_img = tk.PhotoImage(file=bg_path)
         bg_label = tk.Label(root, image=bg_img)
-        bg_label.place(x=0, y=0, relwidth=1, relheight=1)  # cubre toda la ventana
-        root.bg_ref = bg_img  # evita recolección de basura
+        bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        root.bg_ref = bg_img
     except Exception as e:
-        print(f"No se pudo cargar el fondo: {e}")
+        print(f"[Advertencia] No se pudo cargar el fondo: {e}")
 
-    # ------------------------------------------------------------
-    # Frame principal
-    # ------------------------------------------------------------
-    frame = tk.Frame(root, bg="#ffffff", relief="flat")
+    frame = tk.Frame(root, bg="#ffffff")
     frame.pack(pady=10)
 
-    # ------------------------------------------------------------
-    # Cuadro de salida
-    # ------------------------------------------------------------
     output_text = scrolledtext.ScrolledText(root, width=100, height=40, bg="#ffffff", fg="#000000")
     output_text.pack(padx=10, pady=10)
 
-    # ------------------------------------------------------------
-    # Botones principales
-    # ------------------------------------------------------------
     tk.Button(frame, text="Seleccionar archivos", command=lambda: select_files(output_text)).grid(row=0, column=0, padx=5)
     tk.Button(frame, text="Coincidencias inteligentes", command=lambda: run_correlations(output_text)).grid(row=0, column=1, padx=5)
     tk.Button(frame, text="Mostrar en mapa", command=show_on_map).grid(row=0, column=2, padx=5)
     tk.Button(frame, text="Exportar resultados", command=lambda: export_results(output_text)).grid(row=0, column=3, padx=5)
 
-    # ------------------------------------------------------------
-    # Botón para limpiar resultados
-    # ------------------------------------------------------------
     def clear_output():
-        """Limpia el cuadro de salida de texto."""
         output_text.delete("1.0", tk.END)
 
     tk.Button(frame, text="🧹 Limpiar", command=clear_output).grid(row=0, column=4, padx=5)
 
-    # ------------------------------------------------------------
-    # Botón 'Acerca de'
-    # ------------------------------------------------------------
     def show_about():
-        """Muestra la ventana de información 'Acerca de'."""
         messagebox.showinfo(
             "Acerca de Meta-Analisis",
-            "📸 Meta-Analisis v0.5\n\n"
+            "📸 Meta-Analisis v0.6\n\n"
             "Desarrollado por Cristian Ríos\n"
             "Proyecto de análisis y correlación de metadatos EXIF\n\n"
             "Repositorio oficial:\n"
@@ -222,19 +218,15 @@ def main():
 
     tk.Button(frame, text="ℹ️ Acerca de", command=show_about).grid(row=0, column=5, padx=5)
 
-    # ------------------------------------------------------------
-    # Miniatura / Logo
-    # ------------------------------------------------------------
     try:
-        logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
+        logo_path = resource_path("ui/assets/logo.png")
         logo_img = tk.PhotoImage(file=logo_path)
-        logo_small = logo_img.subsample(4, 4)  # reduce tamaño (ajustar si es necesario)
+        logo_small = logo_img.subsample(4, 4)
         tk.Label(frame, image=logo_small, bg="#ffffff").grid(row=0, column=6, padx=10)
         frame.logo_ref = logo_small
     except Exception as e:
-        print(f"No se pudo cargar el logo: {e}")
+        print(f"[Advertencia] No se pudo cargar el logo: {e}")
 
-    # ------------------------------------------------------------
     root.mainloop()
 
 
