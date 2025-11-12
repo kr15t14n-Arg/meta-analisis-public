@@ -162,19 +162,79 @@ def show_on_map():
 def main():
     root = tk.Tk()
     root.title("Meta-Analisis 🕵️‍♀️")
+    root.iconbitmap(os.path.join(os.path.dirname(__file__), "assets", "icon.ico"))
+    root.geometry("1000x700")  # opcional, ajusta si querés tamaño fijo
 
-    frame = tk.Frame(root)
+    # ------------------------------------------------------------
+    # Fondo / Marca de agua
+    # ------------------------------------------------------------
+    try:
+        bg_path = os.path.join(os.path.dirname(__file__), "assets", "background.png")
+        bg_img = tk.PhotoImage(file=bg_path)
+        bg_label = tk.Label(root, image=bg_img)
+        bg_label.place(x=0, y=0, relwidth=1, relheight=1)  # cubre toda la ventana
+        root.bg_ref = bg_img  # evita recolección de basura
+    except Exception as e:
+        print(f"No se pudo cargar el fondo: {e}")
+
+    # ------------------------------------------------------------
+    # Frame principal
+    # ------------------------------------------------------------
+    frame = tk.Frame(root, bg="#ffffff", relief="flat")
     frame.pack(pady=10)
 
+    # ------------------------------------------------------------
+    # Cuadro de salida
+    # ------------------------------------------------------------
+    output_text = scrolledtext.ScrolledText(root, width=100, height=40, bg="#ffffff", fg="#000000")
+    output_text.pack(padx=10, pady=10)
+
+    # ------------------------------------------------------------
     # Botones principales
+    # ------------------------------------------------------------
     tk.Button(frame, text="Seleccionar archivos", command=lambda: select_files(output_text)).grid(row=0, column=0, padx=5)
     tk.Button(frame, text="Coincidencias inteligentes", command=lambda: run_correlations(output_text)).grid(row=0, column=1, padx=5)
     tk.Button(frame, text="Mostrar en mapa", command=show_on_map).grid(row=0, column=2, padx=5)
     tk.Button(frame, text="Exportar resultados", command=lambda: export_results(output_text)).grid(row=0, column=3, padx=5)
 
-    output_text = scrolledtext.ScrolledText(root, width=100, height=40)
-    output_text.pack(padx=10, pady=10)
+    # ------------------------------------------------------------
+    # Botón para limpiar resultados
+    # ------------------------------------------------------------
+    def clear_output():
+        """Limpia el cuadro de salida de texto."""
+        output_text.delete("1.0", tk.END)
 
+    tk.Button(frame, text="🧹 Limpiar", command=clear_output).grid(row=0, column=4, padx=5)
+
+    # ------------------------------------------------------------
+    # Botón 'Acerca de'
+    # ------------------------------------------------------------
+    def show_about():
+        """Muestra la ventana de información 'Acerca de'."""
+        messagebox.showinfo(
+            "Acerca de Meta-Analisis",
+            "📸 Meta-Analisis v0.5\n\n"
+            "Desarrollado por Cristian Ríos\n"
+            "Proyecto de análisis y correlación de metadatos EXIF\n\n"
+            "Repositorio oficial:\n"
+            "https://github.com/kr15t14n-Arg/meta-analisis"
+        )
+
+    tk.Button(frame, text="ℹ️ Acerca de", command=show_about).grid(row=0, column=5, padx=5)
+
+    # ------------------------------------------------------------
+    # Miniatura / Logo
+    # ------------------------------------------------------------
+    try:
+        logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
+        logo_img = tk.PhotoImage(file=logo_path)
+        logo_small = logo_img.subsample(4, 4)  # reduce tamaño (ajustar si es necesario)
+        tk.Label(frame, image=logo_small, bg="#ffffff").grid(row=0, column=6, padx=10)
+        frame.logo_ref = logo_small
+    except Exception as e:
+        print(f"No se pudo cargar el logo: {e}")
+
+    # ------------------------------------------------------------
     root.mainloop()
 
 

@@ -133,11 +133,20 @@ def export_to_pdf(metadata_list, correlations=None, output_path="report.pdf"):
     styles.add(ParagraphStyle(name="Value", fontSize=10, leading=12, leftIndent=10))
     styles.add(ParagraphStyle(name="BulletList", fontSize=9, leading=11, leftIndent=20))
     styles.add(ParagraphStyle(name="Separator", fontSize=6, spaceBefore=8, spaceAfter=4, textColor=colors.grey))
+    from reportlab.pdfgen import canvas
+
+    def add_watermark(canvas_obj, doc):
+        canvas_obj.saveState()
+        canvas_obj.setFont("Helvetica-Bold", 100)
+        canvas_obj.setFillGray(0.9, 0.3)  # gris claro, opacidad baja
+        canvas_obj.rotate(60)
+        canvas_obj.drawCentredString(550, -50, "Meta-Analisis")
+        canvas_obj.restoreState()
 
     # ------------------------------------------------------
     # ENCABEZADO
     # ------------------------------------------------------
-    elements.append(Paragraph("<b>Informe de Análisis de Metadatos</b>", styles["Title"]))
+    elements.append(Paragraph("<b>Informe de Análisis preliminar de Metadatos</b>", styles["Title"]))
     elements.append(Spacer(1, 12))
     elements.append(Paragraph(f"Generado el {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles["Normal"]))
     elements.append(Spacer(1, 20))
@@ -195,5 +204,5 @@ def export_to_pdf(metadata_list, correlations=None, output_path="report.pdf"):
                     elements.append(Paragraph(f"• {os.path.basename(f)}", styles["BulletList"]))
                 elements.append(Spacer(1, 8))
 
-    pdf.build(elements)
+    pdf.build(elements, onFirstPage=add_watermark, onLaterPages=add_watermark)
     return os.path.abspath(output_path)
