@@ -8,26 +8,27 @@ from tools.intelligent_filter import build_correlation_report
 from tools.report_generator import export_to_pdf, export_to_txt, export_to_csv
 
 # =====================================================
-# 🔹 RUTA SEGURA PARA ARCHIVOS DENTRO Y FUERA DEL EXE
+#  RUTA SEGURA PARA ARCHIVOS DENTRO Y FUERA DEL EXE
 # =====================================================
+import sys
+
 def resource_path(relative_path):
-    """Obtiene la ruta absoluta de recursos, compatible con PyInstaller."""
+    """Devuelve la ruta absoluta del recurso, compatible con PyInstaller."""
     try:
-        base_path = sys._MEIPASS  # carpeta temporal creada por PyInstaller
+        base_path = sys._MEIPASS
     except Exception:
-        base_path = os.path.abspath(".")  # ejecución normal (PyCharm)
+        base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-
 # =====================================================
-# 🔹 VARIABLES GLOBALES
+#  VARIABLES GLOBALES
 # =====================================================
 metadata_results = []
 last_correlation_structure = None
 
 
 # =====================================================
-# 🔹 FUNCIONES PRINCIPALES
+#  FUNCIONES PRINCIPALES
 # =====================================================
 import subprocess
 import os
@@ -40,7 +41,7 @@ def analyze_files(file_paths, output_text):
 
     for path in file_paths:
         try:
-            # 🔹 Evita que aparezca la ventana CMD al llamar a exiftool
+            # Evita que aparezca la ventana CMD al llamar a exiftool
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
@@ -166,15 +167,16 @@ def show_on_map():
 
 
 # =====================================================
-# 🔹 INTERFAZ GRÁFICA
+# INTERFAZ GRÁFICA (con rutas adaptables)
 # =====================================================
 def main():
     root = tk.Tk()
     root.title("Meta-Analisis 🕵️‍♀️")
 
-    # Icono (seguro para EXE)
+    # Ícono (funciona tanto en código fuente como en EXE)
     try:
-        root.iconbitmap(resource_path("ui/assets/icon.ico"))
+        icon_path = resource_path(os.path.join("assets", "icon.ico"))
+        root.iconbitmap(icon_path)
     except Exception as e:
         print(f"[Advertencia] No se pudo cargar el icono: {e}")
 
@@ -182,7 +184,7 @@ def main():
 
     # Fondo
     try:
-        bg_path = resource_path("ui/assets/background.png")
+        bg_path = resource_path(os.path.join("assets", "background.png"))
         bg_img = tk.PhotoImage(file=bg_path)
         bg_label = tk.Label(root, image=bg_img)
         bg_label.place(x=0, y=0, relwidth=1, relheight=1)
@@ -190,36 +192,40 @@ def main():
     except Exception as e:
         print(f"[Advertencia] No se pudo cargar el fondo: {e}")
 
+    # Frame principal
     frame = tk.Frame(root, bg="#ffffff")
     frame.pack(pady=10)
 
+    # Área de salida
     output_text = scrolledtext.ScrolledText(root, width=100, height=40, bg="#ffffff", fg="#000000")
     output_text.pack(padx=10, pady=10)
 
+    # Botones principales
     tk.Button(frame, text="Seleccionar archivos", command=lambda: select_files(output_text)).grid(row=0, column=0, padx=5)
     tk.Button(frame, text="Coincidencias inteligentes", command=lambda: run_correlations(output_text)).grid(row=0, column=1, padx=5)
     tk.Button(frame, text="Mostrar en mapa", command=show_on_map).grid(row=0, column=2, padx=5)
     tk.Button(frame, text="Exportar resultados", command=lambda: export_results(output_text)).grid(row=0, column=3, padx=5)
 
+    # Limpiar
     def clear_output():
         output_text.delete("1.0", tk.END)
-
     tk.Button(frame, text="🧹 Limpiar", command=clear_output).grid(row=0, column=4, padx=5)
 
+    # Acerca de
     def show_about():
         messagebox.showinfo(
             "Acerca de Meta-Analisis",
-            "📸 Meta-Analisis v0.6\n\n"
+            "📸 Meta-Analisis v0.7\n\n"
             "Desarrollado por Cristian Ríos\n"
             "Proyecto de análisis y correlación de metadatos EXIF\n\n"
             "Repositorio oficial:\n"
             "https://github.com/kr15t14n-Arg/meta-analisis"
         )
-
     tk.Button(frame, text="ℹ️ Acerca de", command=show_about).grid(row=0, column=5, padx=5)
 
+    # Logo
     try:
-        logo_path = resource_path("ui/assets/logo.png")
+        logo_path = resource_path(os.path.join("assets", "logo.png"))
         logo_img = tk.PhotoImage(file=logo_path)
         logo_small = logo_img.subsample(4, 4)
         tk.Label(frame, image=logo_small, bg="#ffffff").grid(row=0, column=6, padx=10)
@@ -228,7 +234,6 @@ def main():
         print(f"[Advertencia] No se pudo cargar el logo: {e}")
 
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()

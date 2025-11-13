@@ -61,7 +61,7 @@ def analyze_file(path: str) -> Dict[str, Any]:
 
 def analyze_multiple_files(files: List[str], export_csv: str = "docs_analysis.csv") -> Tuple[Dict[str, Any], str, list]:
     """
-    Analiza múltiples documentos y devuelve:
+    Analiza documentos por lotes y devuelve:
     - common: campos comunes (correlaciones)
     - export_csv: ruta del CSV generado
     - rows: lista de metadatos individuales por archivo
