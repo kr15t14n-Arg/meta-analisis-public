@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 import subprocess, os, sys, webbrowser
+import threading
+import http.server
+import socketserver
 import folium
 
 from tools.metadata_utils import parse_metadata_to_dict, extract_core_fields
@@ -142,6 +145,22 @@ def export_results(output_text):
         messagebox.showerror("Error", f"Ocurrió un error al exportar:\n{e}")
 
 
+# =====================================================
+#  MÓDULO DE MAPA — VERSIÓN CORREGIDA
+#  Problema original: OpenStreetMap bloqueaba los tiles
+#  con error 403 al abrir desde file:// sin Referer.
+#
+#  Solución aplicada:
+#  1. Se reemplazó el tile provider por CartoDB Positron,
+#     que no requiere API key ni Referer válido.
+#  2. Se levanta un servidor HTTP local (localhost:8765)
+#     para servir el HTML, evitando las restricciones
+#     del protocolo file:// que causaban el bloqueo.
+#  3. El servidor atiende una sola petición y se cierra
+#     automáticamente (handle_request), sin dejar
+#     procesos colgados.
+# =====================================================
+
 def show_on_map():
     if not metadata_results:
         messagebox.showwarning("Atención", "No hay archivos analizados.")
@@ -157,13 +176,57 @@ def show_on_map():
         messagebox.showinfo("Info", "Ningún archivo tiene coordenadas GPS.")
         return
 
-    m = folium.Map(location=[gps_points[0][0], gps_points[0][1]], zoom_start=12)
-    for lat, lon, name in gps_points:
-        folium.Marker([lat, lon], popup=name).add_to(m)
+    # --- Crear mapa con CartoDB Positron (sin restricciones de Referer) ---
+    m = folium.Map(
+        location=[gps_points[0][0], gps_points[0][1]],
+        zoom_start=12,
+        tiles="CartoDB positron"
+    )
 
-    map_path = "mapa_resultados.html"
+    for lat, lon, name in gps_points:
+        folium.Marker(
+            [lat, lon],
+            popup=folium.Popup(name, max_width=300),
+            tooltip=name
+        ).add_to(m)
+
+    # Guardar el HTML en el directorio del script
+    map_dir = os.path.dirname(os.path.abspath(__file__))
+    map_filename = "mapa_resultados.html"
+    map_path = os.path.join(map_dir, map_filename)
     m.save(map_path)
-    webbrowser.open("file://" + os.path.abspath(map_path))
+
+    # --- Servidor HTTP local para evitar restricciones de file:// ---
+    PORT = 8765
+
+    class SilentHandler(http.server.SimpleHTTPRequestHandler):
+        """Handler que suprime los logs en consola."""
+        def log_message(self, format, *args):
+            pass
+
+        def end_headers(self):
+            # Cabecera CORS por si acaso
+            self.send_header("Access-Control-Allow-Origin", "*")
+            super().end_headers()
+
+    def run_server():
+        os.chdir(map_dir)
+        try:
+            with socketserver.TCPServer(("", PORT), SilentHandler) as httpd:
+                httpd.handle_request()  # atiende una petición y cierra solo
+        except OSError:
+            # El puerto puede estar ocupado si se abre el mapa varias veces seguidas;
+            # en ese caso el archivo ya está siendo servido o fue cacheado por el browser.
+            pass
+
+    thread = threading.Thread(target=run_server, daemon=True)
+    thread.start()
+
+    # Pequeña pausa para que el servidor esté listo antes de abrir el browser
+    import time
+    time.sleep(0.3)
+
+    webbrowser.open(f"http://localhost:{PORT}/{map_filename}")
 
 
 # =====================================================
