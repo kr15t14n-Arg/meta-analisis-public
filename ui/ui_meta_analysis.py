@@ -38,6 +38,29 @@ import os
 import tkinter as tk
 from tkinter import messagebox
 
+def get_exiftool_path():
+    """
+    Busca exiftool.exe en este orden:
+    1. Junto al MetaAnalisis.exe (carpeta portable)
+    2. Junto al script en desarrollo
+    3. PATH del sistema
+    """
+    # 1. Junto al exe (modo portable)
+    try:
+        exe_dir = os.path.dirname(sys.executable)
+        candidate = os.path.join(exe_dir, "exiftool.exe")
+        if os.path.exists(candidate):
+            return candidate
+    except Exception:
+        pass
+
+    # 2. Junto al script (desarrollo en PyCharm)
+    local = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exiftool.exe")
+    if os.path.exists(local):
+        return local
+
+    # 3. Fallback PATH del sistema
+    return "exiftool"
 def analyze_files(file_paths, output_text):
     global metadata_results
     metadata_results.clear()
@@ -49,7 +72,7 @@ def analyze_files(file_paths, output_text):
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
             result = subprocess.run(
-                ["exiftool", path],
+                [get_exiftool_path(), path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
